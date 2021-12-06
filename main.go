@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
+
 	"github.com/rs/xid"
 	"time"
 	"net/http"
@@ -34,7 +35,8 @@ func NewRecipeHandler(c *gin.Context) {
 
 func init() {
 	recipes = make([]Recipe, 0)
-}
+)
+
 func main() {
 	router := gin.Default()
 	router.POST("/recipes", NewRecipeHandler)
