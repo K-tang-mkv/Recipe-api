@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
+
 	"github.com/rs/xid"
 	"time"
 	"net/http"
@@ -69,8 +70,10 @@ func UpdateRecipeHandler(c *gin.Context) {
 
 func init() {
 	recipes = make([]Recipe, 0)
+
 	// file, _ := ioutil.ReadFile("recipes.json")
 	// _ = json.Unmarshal([]byte(file), &recipes)
+
 }
 
 func main() {
