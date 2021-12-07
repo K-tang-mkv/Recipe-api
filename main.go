@@ -5,6 +5,7 @@ import (
 	"github.com/rs/xid"
 	"time"
 	"net/http"
+	"strings"
 	// "encoding/json"
 	// "io/ioutil"
 )
@@ -89,6 +90,33 @@ func DeleteRecipeHandler(c *gin.Context) {
 		"message": "Recipe has been deleted"})
 }
 
+// Swagger: GET/search
+// Search for a recipe based on tags or keywords
+func SearchRecipesHandler(c *gin.Context) {
+	tag := c.Query("tag")
+	listOfRecipes := make([]Recipe, 0)
+	exist := false
+	for i := 0; i < len(recipes); i++ {
+		found := false 
+		for _, t := range recipes[i].Tags {
+			if strings.EqualFold(t, tag) {
+				found = true  
+				exist = true
+			}
+		}
+		if found {
+			listOfRecipes = append(listOfRecipes,
+				recipes[i])
+		} 
+	}
+	if !exist {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Recipe not found"})
+		return 
+	}
+	c.JSON(http.StatusOK, listOfRecipes)
+}
+
 func init() {
 	recipes = make([]Recipe, 0)
 	// file, _ := ioutil.ReadFile("recipes.json")
@@ -101,5 +129,7 @@ func main() {
 	router.GET("/recipes", ListRecipesHandler)
 	router.PUT("/recipes/:id", UpdateRecipeHandler)
 	router.DELETE("recipes/:id", DeleteRecipeHandler)
+	router.GET("/recipes/search", SearchRecipesHandler)
+
 	router.Run()
 }
