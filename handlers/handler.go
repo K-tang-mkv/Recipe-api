@@ -82,7 +82,7 @@ func (handler *RecipesHandler) NewRecipeHandler(c *gin.Context) {
 
 	// delete the key from redis cache to keep consistence
 	log.Println("Remove data from Redis")
-	handler.redisClient.Del("recips")
+	handler.redisClient.Del("recipes")
 	
 	c.JSON(http.StatusOK, recipe)
 }
