@@ -66,19 +66,23 @@ func init() {
 func main() {
 	router := gin.Default()
 
-	store, _ := redisStore.NewStore(10, "tcp", 
-			"localhost:6379", "", []byte("secret"))
+	store, _ := redisStore.NewStore(10, "tcp", "localhost:6379", "", []byte("secret"))
 	router.Use(sessions.Sessions("recipes_api", store))
 
 	router.GET("/recipes", recipesHandler.ListRecipesHandler)
+
 	router.POST("/signin", authHandler.SignInHandler)
 	router.POST("/refresh", authHandler.RefreshHandler)
 	router.POST("/signout", authHandler.SignOutHandler)
 
 	authorized := router.Group("/")
-	authorized.Use(authHandler.AuthMiddleware()) 
+	authorized.Use(authHandler.AuthMiddleware())
 	{
 		authorized.POST("/recipes", recipesHandler.NewRecipeHandler)
+		authorized.PUT("/recipes/:id", recipesHandler.UpdateRecipeHandler)
+		authorized.DELETE("/recipes/:id", recipesHandler.DeleteRecipeHandler)
+		authorized.GET("/recipes/:id", recipesHandler.GetOneRecipeHandler)
 	}
-	router.Run()  
+
+	router.Run()
 }

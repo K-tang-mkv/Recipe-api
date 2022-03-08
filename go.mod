@@ -12,4 +12,5 @@ require (
 	github.com/rs/xid v1.3.0
 	go.mongodb.org/mongo-driver v1.8.1
 	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781
+	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 )

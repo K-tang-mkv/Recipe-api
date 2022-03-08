@@ -1,10 +1,8 @@
 package handlers
 
 import (
-	//"crypto/sha256"
-	"fmt"
+	"crypto/sha256"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -18,8 +16,8 @@ import (
 )
 
 type AuthHandler struct {
-	collection *mongo.Collection  
-	ctx 	   context.Context
+	collection *mongo.Collection
+	ctx        context.Context
 }
 
 type Claims struct {
@@ -28,33 +26,42 @@ type Claims struct {
 }
 
 type JWTOutput struct {
-	Token string `json:"token"`
+	Token   string    `json:"token"`
 	Expires time.Time `json:"expires"`
 }
 
 func NewAuthHandler(ctx context.Context, collection *mongo.Collection) *AuthHandler {
 	return &AuthHandler{
 		collection: collection,
-		ctx: ctx,
+		ctx:        ctx,
 	}
 }
+
+// swagger:operation POST /signin auth signIn
+// Login with username and password
+// ---
+// produces:
+// - application/json
+// responses:
+//     '200':
+//         description: Successful operation
+//     '401':
+//         description: Invalid credentials
 func (handler *AuthHandler) SignInHandler(c *gin.Context) {
-	var user models.User 
+	var user models.User
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return 
+		return
 	}
 
-	//h := sha256.New()
-	fmt.Println(user.Username, user.Password)
+	h := sha256.New()
+
 	cur := handler.collection.FindOne(handler.ctx, bson.M{
 		"username": user.Username,
-		"password": user.Password,
+		"password": string(h.Sum([]byte(user.Password))),
 	})
-
 	if cur.Err() != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error":
-				"Invalid username or password"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
 		return
 	}
 
@@ -63,8 +70,48 @@ func (handler *AuthHandler) SignInHandler(c *gin.Context) {
 	session.Set("username", user.Username)
 	session.Set("token", sessionToken)
 	session.Save()
-	
+
 	c.JSON(http.StatusOK, gin.H{"message": "User signed in"})
+}
+
+// swagger:operation POST /refresh auth refresh
+// Refresh token
+// ---
+// produces:
+// - application/json
+// responses:
+//     '200':
+//         description: Successful operation
+//     '401':
+//         description: Invalid credentials
+func (handler *AuthHandler) RefreshHandler(c *gin.Context) {
+	session := sessions.Default(c)
+	sessionToken := session.Get("token")
+	sessionUser := session.Get("username")
+	if sessionToken == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session cookie"})
+		return
+	}
+
+	sessionToken = xid.New().String()
+	session.Set("username", sessionUser.(string))
+	session.Set("token", sessionToken)
+	session.Save()
+
+	c.JSON(http.StatusOK, gin.H{"message": "New session issued"})
+}
+
+// swagger:operation POST /signout auth signOut
+// Signing out
+// ---
+// responses:
+//     '200':
+//         description: Successful operation
+func (handler *AuthHandler) SignOutHandler(c *gin.Context) {
+	session := sessions.Default(c)
+	session.Clear()
+	session.Save()
+	c.JSON(http.StatusOK, gin.H{"message": "Signed out..."})
 }
 
 func (handler *AuthHandler) AuthMiddleware() gin.HandlerFunc {
@@ -79,55 +126,4 @@ func (handler *AuthHandler) AuthMiddleware() gin.HandlerFunc {
 		}
 		c.Next()
 	}
-}
-
-func (handler *AuthHandler) RefreshHandler(c *gin.Context) {
-	tokenValue := c.GetHeader("Authorization")
-	claims := &Claims{}
-	tkn, err := jwt.ParseWithClaims(tokenValue, claims, 
-			func(token *jwt.Token) (interface{}, error) {
-		return []byte(os.Getenv("JWT_SECRET")), nil		
-	})
-
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error":
-			err.Error()})
-		return 
-	}
-	if tkn == nil || !tkn.Valid {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-		return
-	}
-
-	if time.Unix(claims.ExpiresAt, 0).Sub(time.Now()) > 30*time.Second {
-					c.JSON(http.StatusBadRequest, gin.H{"error": 
-					"Token is not expired yet"})
-					return 
-	}
-
-	expirationTime :=  time.Now().Add(5 * time.Minute)
-	claims.ExpiresAt = expirationTime.Unix()
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
-
-	tokenString, err := token.SignedString(os.Getenv("JWT_SECRET"))
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return 
-	}
-
-	jwtOutput := JWTOutput{
-		Token:	tokenString,
-		Expires: expirationTime,
-	}
-	c.JSON(http.StatusOK, jwtOutput)
-
-}
-
-func (handler *AuthHandler) SignOutHandler(c *gin.Context) {
-	session := sessions.Default(c)
-	session.Clear()
-	session.Save()
-	c.JSON(http.StatusOK, gin.H{"message": "Signed out..."})
-	
 }
