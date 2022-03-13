@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -12,17 +13,50 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"golang.org/x/net/context"
 )
 
-type RecipesHandler struct {
+type recipesHandler struct {
 	collection  *mongo.Collection
 	ctx         context.Context
 	redisClient *redis.Client
 }
 
-func NewRecipesHandler(ctx context.Context, collection *mongo.Collection, redisClient *redis.Client) *RecipesHandler {
-	return &RecipesHandler{
+var (
+	RecipesHandler *recipesHandler
+	AuthHandler    *authHandler
+)
+
+func init() {
+	ctx := context.Background()
+	client, err := mongo.Connect(ctx,
+		options.Client().ApplyURI("mongodb://localhost:27017"))
+
+	if err = client.Ping(context.TODO(), readpref.Primary()); err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Connected to MongoDB")
+
+	collection := client.Database("demo").Collection("recipes")
+	collectionUsers := client.Database("demo").Collection("users")
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
+	})
+	status := redisClient.Ping()
+	fmt.Println(status)
+
+	RecipesHandler = NewRecipesHandler(ctx, collection, redisClient)
+	AuthHandler = NewAuthHandler(ctx, collectionUsers)
+
+}
+
+func NewRecipesHandler(ctx context.Context, collection *mongo.Collection, redisClient *redis.Client) *recipesHandler {
+	return &recipesHandler{
 		collection:  collection,
 		ctx:         ctx,
 		redisClient: redisClient,
@@ -37,7 +71,7 @@ func NewRecipesHandler(ctx context.Context, collection *mongo.Collection, redisC
 // responses:
 //     '200':
 //         description: Successful operation
-func (handler *RecipesHandler) ListRecipesHandler(c *gin.Context) {
+func (handler *recipesHandler) ListRecipesHandler(c *gin.Context) {
 	val, err := handler.redisClient.Get("recipes").Result()
 	if err == redis.Nil {
 		log.Printf("Request to MongoDB")
@@ -79,7 +113,7 @@ func (handler *RecipesHandler) ListRecipesHandler(c *gin.Context) {
 //         description: Successful operation
 //     '400':
 //         description: Invalid input
-func (handler *RecipesHandler) NewRecipeHandler(c *gin.Context) {
+func (handler *recipesHandler) NewRecipeHandler(c *gin.Context) {
 	var recipe models.Recipe
 	if err := c.ShouldBindJSON(&recipe); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -118,7 +152,7 @@ func (handler *RecipesHandler) NewRecipeHandler(c *gin.Context) {
 //         description: Invalid input
 //     '404':
 //         description: Invalid recipe ID
-func (handler *RecipesHandler) UpdateRecipeHandler(c *gin.Context) {
+func (handler *recipesHandler) UpdateRecipeHandler(c *gin.Context) {
 	id := c.Param("id")
 	var recipe models.Recipe
 	if err := c.ShouldBindJSON(&recipe); err != nil {
@@ -159,7 +193,7 @@ func (handler *RecipesHandler) UpdateRecipeHandler(c *gin.Context) {
 //         description: Successful operation
 //     '404':
 //         description: Invalid recipe ID
-func (handler *RecipesHandler) DeleteRecipeHandler(c *gin.Context) {
+func (handler *recipesHandler) DeleteRecipeHandler(c *gin.Context) {
 	id := c.Param("id")
 	objectId, _ := primitive.ObjectIDFromHex(id)
 	_, err := handler.collection.DeleteOne(handler.ctx, bson.M{
@@ -186,7 +220,7 @@ func (handler *RecipesHandler) DeleteRecipeHandler(c *gin.Context) {
 // responses:
 //     '200':
 //         description: Successful operation
-func (handler *RecipesHandler) GetOneRecipeHandler(c *gin.Context) {
+func (handler *recipesHandler) GetOneRecipeHandler(c *gin.Context) {
 	id := c.Param("id")
 	objectId, _ := primitive.ObjectIDFromHex(id)
 	cur := handler.collection.FindOne(handler.ctx, bson.M{
