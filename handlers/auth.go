@@ -15,7 +15,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-type AuthHandler struct {
+type authHandler struct {
 	collection *mongo.Collection
 	ctx        context.Context
 }
@@ -30,8 +30,8 @@ type JWTOutput struct {
 	Expires time.Time `json:"expires"`
 }
 
-func NewAuthHandler(ctx context.Context, collection *mongo.Collection) *AuthHandler {
-	return &AuthHandler{
+func NewAuthHandler(ctx context.Context, collection *mongo.Collection) *authHandler {
+	return &authHandler{
 		collection: collection,
 		ctx:        ctx,
 	}
@@ -47,7 +47,7 @@ func NewAuthHandler(ctx context.Context, collection *mongo.Collection) *AuthHand
 //         description: Successful operation
 //     '401':
 //         description: Invalid credentials
-func (handler *AuthHandler) SignInHandler(c *gin.Context) {
+func (handler *authHandler) SignInHandler(c *gin.Context) {
 	var user models.User
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -84,7 +84,7 @@ func (handler *AuthHandler) SignInHandler(c *gin.Context) {
 //         description: Successful operation
 //     '401':
 //         description: Invalid credentials
-func (handler *AuthHandler) RefreshHandler(c *gin.Context) {
+func (handler *authHandler) RefreshHandler(c *gin.Context) {
 	session := sessions.Default(c)
 	sessionToken := session.Get("token")
 	sessionUser := session.Get("username")
@@ -107,14 +107,14 @@ func (handler *AuthHandler) RefreshHandler(c *gin.Context) {
 // responses:
 //     '200':
 //         description: Successful operation
-func (handler *AuthHandler) SignOutHandler(c *gin.Context) {
+func (handler *authHandler) SignOutHandler(c *gin.Context) {
 	session := sessions.Default(c)
 	session.Clear()
 	session.Save()
 	c.JSON(http.StatusOK, gin.H{"message": "Signed out..."})
 }
 
-func (handler *AuthHandler) AuthMiddleware() gin.HandlerFunc {
+func (handler *authHandler) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session := sessions.Default(c)
 		sessionToken := session.Get("token")
